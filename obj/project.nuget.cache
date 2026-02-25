@@ -1,9 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "KovbHEzkCBg=",
+  "dgSpecHash": "6Ckvrg0EhSU=",
   "success": true,
-  "projectFilePath": "/Users/ritadas/Downloads/Ravi/FamilyHubTimer.csproj",
+  "projectFilePath": "/Users/ritadas/Downloads/New-Timer-main/FamilyHubTimer.csproj",
   "expectedPackageFiles": [
+    "/Users/ritadas/.nuget/packages/elmsharp/1.2.2/elmsharp.1.2.2.nupkg.sha512",
     "/Users/ritadas/.nuget/packages/microsoft.netcore.platforms/1.1.0/microsoft.netcore.platforms.1.1.0.nupkg.sha512",
     "/Users/ritadas/.nuget/packages/microsoft.netcore.targets/1.1.0/microsoft.netcore.targets.1.1.0.nupkg.sha512",
     "/Users/ritadas/.nuget/packages/microsoft.win32.primitives/4.3.0/microsoft.win32.primitives.4.3.0.nupkg.sha512",
@@ -82,9 +83,8 @@
     "/Users/ritadas/.nuget/packages/tizen.applications.ui/1.5.8/tizen.applications.ui.1.5.8.nupkg.sha512",
     "/Users/ritadas/.nuget/packages/tizen.log/1.0.0/tizen.log.1.0.0.nupkg.sha512",
     "/Users/ritadas/.nuget/packages/tizen.nui/0.2.43/tizen.nui.0.2.43.nupkg.sha512",
-    "/Users/ritadas/.nuget/packages/microsoft.netcore.app.ref/8.0.24/microsoft.netcore.app.ref.8.0.24.nupkg.sha512",
-    "/Users/ritadas/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.24/microsoft.aspnetcore.app.ref.8.0.24.nupkg.sha512",
-    "/Users/ritadas/.nuget/packages/microsoft.netcore.app.host.osx-arm64/8.0.24/microsoft.netcore.app.host.osx-arm64.8.0.24.nupkg.sha512"
+    "/Users/ritadas/.nuget/packages/microsoft.netcore.app.ref/6.0.36/microsoft.netcore.app.ref.6.0.36.nupkg.sha512",
+    "/Users/ritadas/.nuget/packages/microsoft.aspnetcore.app.ref/6.0.36/microsoft.aspnetcore.app.ref.6.0.36.nupkg.sha512"
   ],
   "logs": []
 }

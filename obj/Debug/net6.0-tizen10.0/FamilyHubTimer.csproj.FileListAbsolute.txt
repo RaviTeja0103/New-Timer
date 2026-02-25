@@ -1,0 +1,4 @@
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen10.0/FamilyHubTimer.GeneratedMSBuildEditorConfig.editorconfig
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen10.0/FamilyHubTimer.AssemblyInfoInputs.cache
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen10.0/FamilyHubTimer.AssemblyInfo.cs
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen10.0/FamilyHubTimer.csproj.CoreCompileInputs.cache

@@ -1,7 +1,23 @@
 {
   "version": 3,
   "targets": {
-    "net8.0": {
+    "net6.0-tizen9.0": {
+      "ElmSharp/1.2.2": {
+        "type": "package",
+        "dependencies": {
+          "NETStandard.Library": "1.6.1"
+        },
+        "compile": {
+          "lib/netstandard1.3/ElmSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard1.3/ElmSharp.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Microsoft.NETCore.Platforms/1.1.0": {
         "type": "package",
         "compile": {
@@ -1372,6 +1388,19 @@
     }
   },
   "libraries": {
+    "ElmSharp/1.2.2": {
+      "sha512": "Zs0qk5CskiFRwbnEWuYtyK4RgCSZnuMBTZpQ6pZLZFHXf66JaIRk215oqSR4LnaN+BXDwCOwVSXoKfkv2B2zuQ==",
+      "type": "package",
+      "path": "elmsharp/1.2.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "elmsharp.1.2.2.nupkg.sha512",
+        "elmsharp.nuspec",
+        "lib/netstandard1.3/ElmSharp.dll",
+        "lib/netstandard1.3/ElmSharp.xml"
+      ]
+    },
     "Microsoft.NETCore.Platforms/1.1.0": {
       "sha512": "kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A==",
       "type": "package",
@@ -4708,7 +4737,9 @@
     }
   },
   "projectFileDependencyGroups": {
-    "net8.0": [
+    "net6.0-tizen9.0": [
+      "ElmSharp >= 1.2.2",
+      "Tizen >= 1.0.5",
       "Tizen.NUI >= 0.2.43"
     ]
   },
@@ -4718,24 +4749,24 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/ritadas/Downloads/Ravi/FamilyHubTimer.csproj",
+      "projectUniqueName": "/Users/ritadas/Downloads/New-Timer-main/FamilyHubTimer.csproj",
       "projectName": "FamilyHubTimer",
-      "projectPath": "/Users/ritadas/Downloads/Ravi/FamilyHubTimer.csproj",
+      "projectPath": "/Users/ritadas/Downloads/New-Timer-main/FamilyHubTimer.csproj",
       "packagesPath": "/Users/ritadas/.nuget/packages/",
-      "outputPath": "/Users/ritadas/Downloads/Ravi/obj/",
+      "outputPath": "/Users/ritadas/Downloads/New-Timer-main/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/Users/ritadas/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
-        "net8.0"
+        "net6.0-tizen9.0"
       ],
       "sources": {
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
-        "net8.0": {
-          "targetAlias": "net8.0",
+        "net6.0-tizen9.0": {
+          "targetAlias": "net6.0-tizen9.0",
           "projectReferences": {}
         }
       },
@@ -4752,9 +4783,17 @@
       "SdkAnalysisLevel": "10.0.100"
     },
     "frameworks": {
-      "net8.0": {
-        "targetAlias": "net8.0",
+      "net6.0-tizen9.0": {
+        "targetAlias": "net6.0-tizen9.0",
         "dependencies": {
+          "ElmSharp": {
+            "target": "Package",
+            "version": "[1.2.2, )"
+          },
+          "Tizen": {
+            "target": "Package",
+            "version": "[1.0.5, )"
+          },
           "Tizen.NUI": {
             "target": "Package",
             "version": "[0.2.43, )"
@@ -4774,23 +4813,22 @@
         "downloadDependencies": [
           {
             "name": "Microsoft.AspNetCore.App.Ref",
-            "version": "[8.0.24, 8.0.24]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Host.osx-arm64",
-            "version": "[8.0.24, 8.0.24]"
+            "version": "[6.0.36, 6.0.36]"
           },
           {
             "name": "Microsoft.NETCore.App.Ref",
-            "version": "[8.0.24, 8.0.24]"
+            "version": "[6.0.36, 6.0.36]"
           }
         ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
+          },
+          "Samsung.Tizen": {
+            "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.103/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.103/RuntimeIdentifierGraph.json"
       }
     }
   }

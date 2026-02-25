@@ -1,0 +1,13 @@
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/FamilyHubTimer.GeneratedMSBuildEditorConfig.editorconfig
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/FamilyHubTimer.AssemblyInfoInputs.cache
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/FamilyHubTimer.AssemblyInfo.cs
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/FamilyHubTimer.csproj.CoreCompileInputs.cache
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/FamilyHubTimer.deps.json
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/FamilyHubTimer.runtimeconfig.json
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/FamilyHubTimer.dll
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/FamilyHubTimer.pdb
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/FamilyHubTimer.dll
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/refint/FamilyHubTimer.dll
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/FamilyHubTimer.pdb
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/FamilyHubTimer.genruntimeconfig.cache
+/Users/ritadas/Downloads/New-Timer-main/obj/Debug/net6.0-tizen9.0/ref/FamilyHubTimer.dll

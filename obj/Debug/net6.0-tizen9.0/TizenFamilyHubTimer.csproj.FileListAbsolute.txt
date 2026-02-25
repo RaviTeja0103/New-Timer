@@ -1,0 +1,6 @@
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/tpkroot/bin/FamilyHubTimer.dll
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/tpkroot/bin/FamilyHubTimer.runtimeconfig.json
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/tpkroot/bin/FamilyHubTimer.pdb
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/tpkroot/FamilyHubTimer.deps.json
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/tpkroot/
+/Users/ritadas/Downloads/New-Timer-main/bin/Debug/net6.0-tizen9.0/org.tizen.familyhubtimer-1.0.0.tpk

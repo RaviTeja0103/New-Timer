@@ -1,15 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <Platforms>AnyCPU</Platforms>
+    <TargetFramework>net6.0-tizen9.0</TargetFramework>
     <AssemblyName>FamilyHubTimer</AssemblyName>
     <RootNamespace>FamilyHubTimer</RootNamespace>
     <Title>Family Hub Timer</Title>
     <Authors>Samsung</Authors>
     <Company>Samsung</Company>
     <Product>Family Hub Timer</Product>
-    <Tizen>10.0</Tizen>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <NoWarn>$(NoWarn);CS8612;CS8625</NoWarn>
@@ -21,6 +19,8 @@
 
   <ItemGroup>
     <PackageReference Include="Tizen.NUI" Version="0.2.43" />
+    <PackageReference Include="ElmSharp" Version="1.2.2" />
+    <PackageReference Include="Tizen" Version="1.0.5" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,4 +28,3 @@
   </ItemGroup>
 
 </Project>
-

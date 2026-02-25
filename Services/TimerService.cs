@@ -25,6 +25,7 @@ namespace FamilyHubTimer.Services
         public event EventHandler<TimerModel> TimerFinished;
         public event EventHandler<TimerModel> TimerRemoved;
         public event EventHandler<TimerModel> TimerUpdated;
+        public event EventHandler<TimerModel> TimerAdded;
 
         public TimerService()
         {
@@ -79,6 +80,7 @@ namespace FamilyHubTimer.Services
             };
 
             _timers.Add(timer);
+            TimerAdded?.Invoke(this, timer);
             SaveTimers();
             return timer;
         }
