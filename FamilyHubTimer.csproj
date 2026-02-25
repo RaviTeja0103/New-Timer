@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Platforms>AnyCPU</Platforms>
+    <AssemblyName>FamilyHubTimer</AssemblyName>
+    <RootNamespace>FamilyHubTimer</RootNamespace>
+    <Title>Family Hub Timer</Title>
+    <Authors>Samsung</Authors>
+    <Company>Samsung</Company>
+    <Product>Family Hub Timer</Product>
+    <Tizen>10.0</Tizen>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);CS8612;CS8625</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tizen.NUI" Version="0.2.43" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TizenManifest Include="tizen-manifest.xml" />
+  </ItemGroup>
+
+</Project>
+

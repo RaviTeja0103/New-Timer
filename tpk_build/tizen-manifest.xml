@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns="http://tizen.org/ns/packages" package="org.tizen.familyhubtimer" version="1.0.0" api-version="10.0">
+  <label>Family Hub Timer</label>
+  <description>A feature-rich timer application for Samsung Family Hub</description>
+  <author email="developer@samsung.com" href="http://samsung.com">Samsung</author>
+  <icon icon="icon.png"/>
+
+  <required-version api-version="10.0"/>
+
+  <privileges>
+    <privilege>http://tizen.org/privilege/vibrator</privilege>
+    <privilege>http://tizen.org/privilege/sound.manager</privilege>
+  </privileges>
+
+  <ui-application appid="org.tizen.familyhubtimer" exec="FamilyHubTimer.dll" multiple="false" taskmanage="true" launch_mode="single">
+    <label>Family Hub Timer</label>
+    <icon icon="icon.png"/>
+    <metadata key="http://samsung.com/metadata/favorite" value="true"/>
+    <metadata key="http://tizen.org/metadata/operation/nfc" value="true"/>
+  </ui-application>
+</manifest>
+
