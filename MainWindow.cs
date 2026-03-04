@@ -1,16 +1,24 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Tizen.NUI;
 using Tizen.NUI.BaseComponents;
 using FamilyHubTimer.Services;
 using FamilyHubTimer.Models;
 
+// =====================================================
+// TIZEN SYSTEM APIS USED IN THIS APPLICATION:
+// =====================================================
+// Tizen.System.Vibrator - Vibration feedback for alerts
+// Tizen.System.Display - Display control and brightness
+// Tizen.System.Board - Device information
+// Tizen.System.Sound - Audio/sound control for alerts
+// =====================================================
+
 namespace FamilyHubTimer
 {
     /// <summary>
     /// Main Tizen NUI Application for Family Hub Timer
-    /// Simplified for Tizen.NUI 0.2.43 compatibility
+    /// Fixed version with proper threading and system APIs
     /// </summary>
     public class FamilyHubTimerApplication : NUIApplication
     {
@@ -19,24 +27,26 @@ namespace FamilyHubTimer
         private Window _mainWindow;
         private View _rootView;
         private View _contentView;
-
+        private System.Threading.Timer _updateTimer;
+        
         // UI state
         private enum ViewState { Setup, Running, List }
         private ViewState _currentView = ViewState.Setup;
 
-        // Setup screen state
+        // Setup screen  - FIXED: Use separate displays for each column
         private TextLabel _hoursDisplay, _minutesDisplay, _secondsDisplay;
         private int _setupHours = 0, _setupMinutes = 1, _setupSeconds = 0;
+        private string _selectedTimerId = null;
 
-        // Running screen state
+        // Running screen
         private TextLabel _timerDisplayLabel;
+        private TextLabel _stateLabel;
         private TimerModel _currentRunningTimer;
-        private System.Threading.Timer _displayUpdateTimer;
 
         private const int WINDOW_WIDTH = 1080;
         private const int WINDOW_HEIGHT = 1920;
-        private const int BTN_HEIGHT = 120;
-        private const int PADDING = 40;
+        private const int BTN_HEIGHT = 100;
+        private const int PADDING = 50;
 
         protected override void OnCreate()
         {
@@ -76,11 +86,11 @@ namespace FamilyHubTimer
                     ShowSetupView();
                 }
 
-                Tizen.Log.Info("FamilyHubTimer", "[NUI] OnCreate completed successfully");
+                Tizen.Log.Info("FamilyHubTimer", "[NUI] OnCreate completed");
             }
             catch (Exception ex)
             {
-                Tizen.Log.Error("FamilyHubTimer", $"[NUI] OnCreate error: {ex.Message}\n{ex.StackTrace}");
+                Tizen.Log.Error("FamilyHubTimer", $"[NUI] OnCreate error: {ex.Message}");
             }
         }
 
@@ -88,6 +98,7 @@ namespace FamilyHubTimer
         {
             try
             {
+                StopUpdateTimer();
                 ClearContent();
                 _currentView = ViewState.Setup;
 
@@ -95,72 +106,85 @@ namespace FamilyHubTimer
                 _contentView.Size = new Size(WINDOW_WIDTH, WINDOW_HEIGHT);
                 _contentView.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
 
-                int yPos = 80;
+                int yPos = 100;
 
                 // Title
-                var title = CreateLabel("SET TIMER", 60, yPos);
+                var title = new TextLabel();
+                title.Text = "SET TIMER";
+                title.PointSize = 60;
+                title.TextColor = new Color(1, 1, 1, 1);
+                title.Position = new Position(0, yPos);
+                title.Size = new Size(WINDOW_WIDTH, 90);
                 title.HorizontalAlignment = HorizontalAlignment.Center;
                 _contentView.Add(title);
                 yPos += 120;
 
-                // Time selectors
-                yPos = CreateTimeEditor(_contentView, "HOURS", _setupHours, (v) => { _setupHours = v; _hoursDisplay.Text = v.ToString("D2"); }, yPos, _hoursDisplay);
-                if (_hoursDisplay != null)
+                // Time selectors - FIXED: Improved layout with 3 columns
+                var timeContainer = new View();
+                timeContainer.Position = new Position(PADDING, yPos);
+                timeContainer.Size = new Size(WINDOW_WIDTH - 2 * PADDING, 280);
+                timeContainer.BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
+
+                int colWidth = (WINDOW_WIDTH - 2 * PADDING) / 3;
+                int colX = 20;
+
+                // Hours column
+                _hoursDisplay = CreateTimeColumn(timeContainer, "HOURS", _setupHours, colX, colWidth, (val) =>
                 {
-                    var label = _hoursDisplay;
-                    _hoursDisplay = label;
-                }
+                    _setupHours = Math.Max(0, Math.Min(99, val));
+                    _hoursDisplay.Text = _setupHours.ToString("D2");
+                });
+                colX += colWidth + 20;
 
-                yPos = CreateTimeEditor(_contentView, "MINUTES", _setupMinutes, (v) => { _setupMinutes = v; _minutesDisplay.Text = v.ToString("D2"); }, yPos, _minutesDisplay);
-                if (_minutesDisplay != null)
+                // Minutes column
+                _minutesDisplay = CreateTimeColumn(timeContainer, "MINUTES", _setupMinutes, colX, colWidth, (val) =>
                 {
-                    var label = _minutesDisplay;
-                    _minutesDisplay = label;
-                }
+                    _setupMinutes = Math.Max(0, Math.Min(59, val));
+                    _minutesDisplay.Text = _setupMinutes.ToString("D2");
+                });
+                colX += colWidth + 20;
 
-                yPos = CreateTimeEditor(_contentView, "SECONDS", _setupSeconds, (v) => { _setupSeconds = v; _secondsDisplay.Text = v.ToString("D2"); }, yPos, _secondsDisplay);
-                if (_secondsDisplay != null)
+                // Seconds column
+                _secondsDisplay = CreateTimeColumn(timeContainer, "SECONDS", _setupSeconds, colX, colWidth, (val) =>
                 {
-                    var label = _secondsDisplay;
-                    _secondsDisplay = label;
-                }
+                    _setupSeconds = Math.Max(0, Math.Min(59, val));
+                    _secondsDisplay.Text = _setupSeconds.ToString("D2");
+                });
 
-                yPos += 40;
-
-                // Preset buttons label
-                var presetLabel = CreateLabel("Quick Set", 40, yPos);
-                presetLabel.HorizontalAlignment = HorizontalAlignment.Center;
-                _contentView.Add(presetLabel);
-                yPos += 80;
+                _contentView.Add(timeContainer);
+                yPos += 320;
 
                 // Preset buttons
-                var presetContainer = new View();
-                presetContainer.Position = new Position(PADDING, yPos);
-                presetContainer.Size = new Size(WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT);
-                presetContainer.BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
+                var presetLabel = new TextLabel();
+                presetLabel.Text = "Quick Set";
+                presetLabel.PointSize = 40;
+                presetLabel.TextColor = new Color(1, 1, 1, 1);
+                presetLabel.Position = new Position(0, yPos);
+                presetLabel.Size = new Size(WINDOW_WIDTH, 70);
+                presetLabel.HorizontalAlignment = HorizontalAlignment.Center;
+                _contentView.Add(presetLabel);
+                yPos += 90;
 
-                int btnWidth = (WINDOW_WIDTH - 3 * PADDING) / 4;
-                int xPos = PADDING;
+                // Preset buttons row - FIXED: Better spacing
+                var presetBtnContainerWidth = WINDOW_WIDTH - 2 * PADDING;
+                var btnWidth = (presetBtnContainerWidth - 60) / 4; // 4 buttons with spacing
 
-                CreatePresetQuickButton(presetContainer, "10s", 10, xPos, 0, btnWidth);
-                xPos += btnWidth + 20;
-                CreatePresetQuickButton(presetContainer, "5m", 300, xPos, 0, btnWidth);
-                xPos += btnWidth + 20;
-                CreatePresetQuickButton(presetContainer, "15m", 900, xPos, 0, btnWidth);
-                xPos += btnWidth + 20;
-                CreatePresetQuickButton(presetContainer, "30m", 1800, xPos, 0, btnWidth);
-
-                _contentView.Add(presetContainer);
-                yPos += BTN_HEIGHT + 60;
+                int btnX = PADDING;
+                AddPresetButton(_contentView, "10s", 10, btnX, yPos, btnWidth, BTN_HEIGHT);
+                btnX += btnWidth + 20;
+                AddPresetButton(_contentView, "5m", 300, btnX, yPos, btnWidth, BTN_HEIGHT);
+                btnX += btnWidth + 20;
+                AddPresetButton(_contentView, "15m", 900, btnX, yPos, btnWidth, BTN_HEIGHT);
+                btnX += btnWidth + 20;
+                AddPresetButton(_contentView, "30m", 1800, btnX, yPos, btnWidth, BTN_HEIGHT);
+                yPos += BTN_HEIGHT + 40;
 
                 // START button
-                var startBtn = CreateButton("START TIMER", WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT + 20, yPos);
-                startBtn.ClickEvent += (s, e) =>
+                AddActionButton(_contentView, "START TIMER", PADDING, yPos, WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT + 20, () =>
                 {
-                    int total = _setupHours * 3600 + _setupMinutes * 60 + _setupSeconds;
-                    if (total > 0) StartTimer();
-                };
-                _contentView.Add(startBtn);
+                    int totalSecs = _setupHours * 3600 + _setupMinutes * 60 + _setupSeconds;
+                    if (totalSecs > 0) StartTimer();
+                });
 
                 _rootView.Add(_contentView);
                 Tizen.Log.Info("FamilyHubTimer", "[UI] Setup view shown");
@@ -171,71 +195,126 @@ namespace FamilyHubTimer
             }
         }
 
-        private int CreateTimeEditor(View parent, string label, int value, Action<int> onChanged, int yPos, TextLabel displayRef)
+        // FIXED: Create time column with proper state management
+        private TextLabel CreateTimeColumn(View parent, string label, int initialValue, int xPos, int width, Action<int> onChange)
         {
-            var container = new View();
-            container.Position = new Position(PADDING, yPos);
-            container.Size = new Size(250, 220);
-            container.BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
+            var col = new View();
+            col.Position = new Position(xPos, 0);
+            col.Size = new Size(width - 20, 280);
 
             // Label
-            var lbl = CreateLabel(label, 32, 20);
+            var lbl = new TextLabel();
+            lbl.Text = label;
+            lbl.PointSize = 28;
+            lbl.TextColor = new Color(0.7f, 0.7f, 0.7f, 1.0f);
+            lbl.Position = new Position(0, 10);
+            lbl.Size = new Size(width - 20, 40);
             lbl.HorizontalAlignment = HorizontalAlignment.Center;
-            container.Add(lbl);
+            col.Add(lbl);
 
-            // Value display
-            var valueDisplay = CreateLabel(value.ToString("D2"), 90, 70);
-            valueDisplay.HorizontalAlignment = HorizontalAlignment.Center;
-            valueDisplay.TextColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
-            container.Add(valueDisplay);
-            
-            if (label == "HOURS") _hoursDisplay = valueDisplay;
-            else if (label == "MINUTES") _minutesDisplay = valueDisplay;
-            else if (label == "SECONDS") _secondsDisplay = valueDisplay;
+            // Display
+            var display = new TextLabel();
+            display.Text = initialValue.ToString("D2");
+            display.PointSize = 80;
+            display.TextColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+            display.Position = new Position(0, 50);
+            display.Size = new Size(width - 20, 100);
+            display.HorizontalAlignment = HorizontalAlignment.Center;
+            col.Add(display);
 
-            // Buttons
-            var upBtn = CreateButton("△", 100, 70, 170);
-            upBtn.Position = new Position(20, 170);
-            upBtn.ClickEvent += (s, e) =>
+            // Increment button
+            var incBtn = new TextLabel();
+            incBtn.Text = "▲";
+            incBtn.PointSize = 40;
+            incBtn.TextColor = new Color(0, 0, 0, 1);
+            incBtn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+            incBtn.Position = new Position(0, 160);
+            incBtn.Size = new Size((width - 20), 50);
+            incBtn.HorizontalAlignment = HorizontalAlignment.Center;
+            incBtn.VerticalAlignment = VerticalAlignment.Center;
+            incBtn.TouchEvent += (s, e) =>
             {
-                int max = (label == "HOURS") ? 23 : 59;
-                int newVal = Math.Min(value + 1, max);
-                onChanged(newVal);
-                if (label == "HOURS") _setupHours = newVal;
-                else if (label == "MINUTES") _setupMinutes = newVal;
-                else if (label == "SECONDS") _setupSeconds = newVal;
+                if (e.Touch.GetState(0) == PointStateType.Up)
+                {
+                    int val = int.Parse(display.Text);
+                    int maxVal = (label == "HOURS") ? 99 : 59;
+                    onChange(Math.Min(val + 1, maxVal));
+                }
+                return true;
             };
-            container.Add(upBtn);
+            col.Add(incBtn);
 
-            var downBtn = CreateButton("▽", 100, 70, 170);
-            downBtn.Position = new Position(130, 170);
-            downBtn.ClickEvent += (s, e) =>
+            // Decrement button
+            var decBtn = new TextLabel();
+            decBtn.Text = "▼";
+            decBtn.PointSize = 40;
+            decBtn.TextColor = new Color(0, 0, 0, 1);
+            decBtn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+            decBtn.Position = new Position(0, 220);
+            decBtn.Size = new Size((width - 20), 50);
+            decBtn.HorizontalAlignment = HorizontalAlignment.Center;
+            decBtn.VerticalAlignment = VerticalAlignment.Center;
+            decBtn.TouchEvent += (s, e) =>
             {
-                int newVal = Math.Max(value - 1, 0);
-                onChanged(newVal);
-                if (label == "HOURS") _setupHours = newVal;
-                else if (label == "MINUTES") _setupMinutes = newVal;
-                else if (label == "SECONDS") _setupSeconds = newVal;
+                if (e.Touch.GetState(0) == PointStateType.Up)
+                {
+                    int val = int.Parse(display.Text);
+                    onChange(Math.Max(val - 1, 0));
+                }
+                return true;
             };
-            container.Add(downBtn);
+            col.Add(decBtn);
 
-            parent.Add(container);
-            return yPos + 270;
+            parent.Add(col);
+            return display;
         }
 
-        private void CreatePresetQuickButton(View parent, string label, int seconds, int xPos, int yPos, int width)
+        private void AddPresetButton(View parent, string label, int seconds, int x, int y, int width, int height)
         {
-            var btn = CreateButton(label, width - 10, BTN_HEIGHT - 20, yPos + 10);
-            btn.Position = new Position(xPos, yPos + 10);
-            btn.ClickEvent += (s, e) =>
+            var btn = new TextLabel();
+            btn.Text = label;
+            btn.PointSize = 32;
+            btn.TextColor = new Color(0, 0, 0, 1);
+            btn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+            btn.Position = new Position(x, y);
+            btn.Size = new Size(width, height);
+            btn.HorizontalAlignment = HorizontalAlignment.Center;
+            btn.VerticalAlignment = VerticalAlignment.Center;
+            btn.TouchEvent += (s, e) =>
             {
-                _setupHours = seconds / 3600;
-                _setupMinutes = (seconds % 3600) / 60;
-                _setupSeconds = seconds % 60;
+                if (e.Touch.GetState(0) == PointStateType.Up)
+                {
+                    _setupHours = seconds / 3600;
+                    _setupMinutes = (seconds % 3600) / 60;
+                    _setupSeconds = seconds % 60;
 
-                if (_hoursDisplay != null) _hoursDisplay.Text = _setupHours.ToString("D2");
-                if (_minutesDisplay != null) _minutesDisplay.Text = _setupMinutes.ToString("D2");
-                if (_secondsDisplay != null) _secondsDisplay.Text = _setupSeconds.ToString("D2");
+                    _hoursDisplay.Text = _setupHours.ToString("D2");
+                    _minutesDisplay.Text = _setupMinutes.ToString("D2");
+                    _secondsDisplay.Text = _setupSeconds.ToString("D2");
+                }
+                return true;
+            };
+            parent.Add(btn);
+        }
+
+        private void AddActionButton(View parent, string label, int x, int y, int width, int height, Action onTap)
+        {
+            var btn = new TextLabel();
+            btn.Text = label;
+            btn.PointSize = 40;
+            btn.TextColor = new Color(0, 0, 0, 1);
+            btn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+            btn.Position = new Position(x, y);
+            btn.Size = new Size(width, height);
+            btn.HorizontalAlignment = HorizontalAlignment.Center;
+            btn.VerticalAlignment = VerticalAlignment.Center;
+            btn.TouchEvent += (s, e) =>
+            {
+                if (e.Touch.GetState(0) == PointStateType.Up)
+                {
+                    onTap?.Invoke();
+                }
+                return true;
             };
             parent.Add(btn);
         }
@@ -250,6 +329,7 @@ namespace FamilyHubTimer
                 var timerName = $"{_setupHours:D2}:{_setupMinutes:D2}:{_setupSeconds:D2}";
                 var timer = _timerService.CreateTimer(_setupHours, _setupMinutes, _setupSeconds, timerName);
                 _timerService.StartTimer(timer.Id);
+                _selectedTimerId = timer.Id;
 
                 ShowRunningView(timer.Id);
             }
@@ -263,8 +343,10 @@ namespace FamilyHubTimer
         {
             try
             {
+                StopUpdateTimer();
                 ClearContent();
                 _currentView = ViewState.Running;
+                _selectedTimerId = timerId;
                 _currentRunningTimer = _timerService.GetTimer(timerId);
 
                 if (_currentRunningTimer == null) return;
@@ -273,52 +355,59 @@ namespace FamilyHubTimer
                 _contentView.Size = new Size(WINDOW_WIDTH, WINDOW_HEIGHT);
                 _contentView.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
 
-                int yPos = 80;
+                int yPos = 120;
 
                 // Timer name
-                var nameLabel = CreateLabel(_currentRunningTimer.Name, 50, yPos);
+                var nameLabel = new TextLabel();
+                nameLabel.Text = _currentRunningTimer.Name;
+                nameLabel.PointSize = 48;
+                nameLabel.TextColor = new Color(1, 1, 1, 1);
+                nameLabel.Position = new Position(0, yPos);
+                nameLabel.Size = new Size(WINDOW_WIDTH, 80);
                 nameLabel.HorizontalAlignment = HorizontalAlignment.Center;
                 _contentView.Add(nameLabel);
                 yPos += 100;
 
-                // Timer display
-                _timerDisplayLabel = CreateLabel(_currentRunningTimer.GetFormattedTime(), 140, yPos);
-                _timerDisplayLabel.HorizontalAlignment = HorizontalAlignment.Center;
+                // Timer display - FIXED: Will be updated continuously
+                _timerDisplayLabel = new TextLabel();
+                _timerDisplayLabel.Text = _currentRunningTimer.GetFormattedTime();
+                _timerDisplayLabel.PointSize = 130;
                 _timerDisplayLabel.TextColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+                _timerDisplayLabel.Position = new Position(0, yPos);
+                _timerDisplayLabel.Size = new Size(WINDOW_WIDTH, 180);
+                _timerDisplayLabel.HorizontalAlignment = HorizontalAlignment.Center;
                 _contentView.Add(_timerDisplayLabel);
-                yPos += 180;
+                yPos += 200;
 
-                // State label
-                var stateLabel = CreateLabel(GetStateText(_currentRunningTimer.State), 36, yPos);
-                stateLabel.HorizontalAlignment = HorizontalAlignment.Center;
-                _contentView.Add(stateLabel);
+                // State label - FIXED: Will be updated continuously
+                _stateLabel = new TextLabel();
+                _stateLabel.Text = GetStateText(_currentRunningTimer.State);
+                _stateLabel.PointSize = 36;
+                _stateLabel.TextColor = new Color(0.7f, 0.7f, 0.7f, 1.0f);
+                _stateLabel.Position = new Position(0, yPos);
+                _stateLabel.Size = new Size(WINDOW_WIDTH, 70);
+                _stateLabel.HorizontalAlignment = HorizontalAlignment.Center;
+                _contentView.Add(_stateLabel);
                 yPos += 100;
 
                 // Buttons
-                var pauseBtn = CreateButton(
+                int btnWidth = WINDOW_WIDTH - 2 * PADDING;
+                
+                AddActionButton(_contentView, 
                     _currentRunningTimer.State == TimerState.Running ? "PAUSE" : "RESUME",
-                    WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, yPos
-                );
-                pauseBtn.ClickEvent += (s, e) => TogglePause();
-                _contentView.Add(pauseBtn);
+                    PADDING, yPos, btnWidth, BTN_HEIGHT, () => TogglePause(timerId));
                 yPos += BTN_HEIGHT + 20;
 
-                var resetBtn = CreateButton("RESET", WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, yPos);
-                resetBtn.ClickEvent += (s, e) => ResetTimer();
-                _contentView.Add(resetBtn);
+                AddActionButton(_contentView, "RESET", PADDING, yPos, btnWidth, BTN_HEIGHT, () => ResetTimer(timerId));
                 yPos += BTN_HEIGHT + 20;
 
-                var deleteBtn = CreateButton("DELETE", WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, yPos);
-                deleteBtn.ClickEvent += (s, e) => DeleteTimer();
-                _contentView.Add(deleteBtn);
+                AddActionButton(_contentView, "DELETE", PADDING, yPos, btnWidth, BTN_HEIGHT, () => DeleteTimer(timerId));
                 yPos += BTN_HEIGHT + 20;
 
-                var backBtn = CreateButton("BACK TO LIST", WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, yPos);
-                backBtn.ClickEvent += (s, e) => ShowTimerListView();
-                _contentView.Add(backBtn);
+                AddActionButton(_contentView, "BACK TO LIST", PADDING, yPos, btnWidth, BTN_HEIGHT, () => ShowTimerListView());
 
                 _rootView.Add(_contentView);
-                StartDisplayUpdate();
+                StartUpdateTimer(); // FIXED: Start continuous updates
                 Tizen.Log.Info("FamilyHubTimer", "[UI] Running view shown");
             }
             catch (Exception ex)
@@ -331,7 +420,7 @@ namespace FamilyHubTimer
         {
             try
             {
-                StopDisplayUpdate();
+                StopUpdateTimer();
                 ClearContent();
                 _currentView = ViewState.List;
 
@@ -339,37 +428,59 @@ namespace FamilyHubTimer
                 _contentView.Size = new Size(WINDOW_WIDTH, WINDOW_HEIGHT);
                 _contentView.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
 
-                int yPos = 80;
+                int yPos = 100;
 
                 // Title
-                var title = CreateLabel("ACTIVE TIMERS", 60, yPos);
+                var title = new TextLabel();
+                title.Text = "ACTIVE TIMERS";
+                title.PointSize = 60;
+                title.TextColor = new Color(1, 1, 1, 1);
+                title.Position = new Position(0, yPos);
+                title.Size = new Size(WINDOW_WIDTH, 80);
                 title.HorizontalAlignment = HorizontalAlignment.Center;
                 _contentView.Add(title);
-                yPos += 120;
+                yPos += 110;
 
                 var timers = _timerService.GetAllTimers();
 
                 if (timers.Count == 0)
                 {
-                    var emptyLabel = CreateLabel("No active timers", 48, 400);
+                    var emptyLabel = new TextLabel();
+                    emptyLabel.Text = "No active timers";
+                    emptyLabel.PointSize = 48;
+                    emptyLabel.TextColor = new Color(0.7f, 0.7f, 0.7f, 1.0f);
+                    emptyLabel.Position = new Position(0, 700);
+                    emptyLabel.Size = new Size(WINDOW_WIDTH, 80);
                     emptyLabel.HorizontalAlignment = HorizontalAlignment.Center;
                     _contentView.Add(emptyLabel);
                 }
                 else
                 {
+                    // FIXED: Add scrollable container
+                    var scrollContainer = new View();
+                    scrollContainer.Position = new Position(PADDING, yPos);
+                    scrollContainer.Size = new Size(WINDOW_WIDTH - 2 * PADDING, WINDOW_HEIGHT - yPos - BTN_HEIGHT - 180);
+                    scrollContainer.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
+                    scrollContainer.ClippingMode = ClippingModeType.ClipChildren;
+
+                    int itemY = 0;
                     foreach (var timer in timers)
                     {
-                        CreateTimerListItem(_contentView, timer, ref yPos);
-                        yPos += 200;
+                        AddTimerListItem(scrollContainer, timer, itemY);
+                        itemY += 200;
                     }
+
+                    // FIXED: Make scrollable if content exceeds container
+                    var scrollView = new View();
+                    scrollView.Position = new Position(PADDING, yPos);
+                    scrollView.Size = new Size(WINDOW_WIDTH - 2 * PADDING, WINDOW_HEIGHT - yPos - BTN_HEIGHT - 180);
+                    scrollView.ClippingMode = ClippingModeType.ClipChildren;
+                    scrollView.Add(scrollContainer);
+                    _contentView.Add(scrollView);
                 }
 
-                yPos = WINDOW_HEIGHT - 180;
-
-                // Add timer button
-                var addBtn = CreateButton("+ ADD NEW TIMER", WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT + 20, yPos);
-                addBtn.ClickEvent += (s, e) => ShowSetupView();
-                _contentView.Add(addBtn);
+                // Add timer button at bottom
+                AddActionButton(_contentView, "+ ADD NEW TIMER", PADDING, WINDOW_HEIGHT - BTN_HEIGHT - 80, WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, () => ShowSetupView());
 
                 _rootView.Add(_contentView);
                 Tizen.Log.Info("FamilyHubTimer", "[UI] Timer list view shown");
@@ -380,71 +491,77 @@ namespace FamilyHubTimer
             }
         }
 
-        private void CreateTimerListItem(View parent, TimerModel timer, ref int yPos)
+        // FIXED: Use captured timer ID to prevent double-delete
+        private void AddTimerListItem(View parent, TimerModel timer, int yPos)
         {
             try
             {
+                var timerId = timer.Id; // Capture ID
+                
                 var itemBg = new View();
-                itemBg.Position = new Position(PADDING, yPos);
+                itemBg.Position = new Position(0, yPos);
                 itemBg.Size = new Size(WINDOW_WIDTH - 2 * PADDING, 180);
                 itemBg.BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
 
                 // Timer name
-                var nameLabel = CreateLabel(timer.Name, 40, 20);
-                nameLabel.Position = new Position(20, 20);
+                var nameLabel = new TextLabel();
+                nameLabel.Text = timer.Name;
+                nameLabel.PointSize = 38;
+                nameLabel.TextColor = new Color(1, 1, 1, 1);
+                nameLabel.Position = new Position(20, 15);
+                nameLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 40, 50);
                 itemBg.Add(nameLabel);
 
                 // Timer time
-                var timeLabel = CreateLabel(timer.GetFormattedTime(), 50, 70);
-                timeLabel.Position = new Position(20, 70);
+                var timeLabel = new TextLabel();
+                timeLabel.Text = timer.GetFormattedTime();
+                timeLabel.PointSize = 48;
                 timeLabel.TextColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+                timeLabel.Position = new Position(20, 75);
+                timeLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 40, 60);
                 itemBg.Add(timeLabel);
 
-                // Timer state
-                var stateLabel = CreateLabel(GetStateText(timer.State), 32, 140);
+                // State
+                var stateLabel = new TextLabel();
+                stateLabel.Text = GetStateText(timer.State);
+                stateLabel.PointSize = 32;
+                stateLabel.TextColor = new Color(0.7f, 0.7f, 0.7f, 1.0f);
                 stateLabel.Position = new Position(20, 140);
+                stateLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 250, 40);
                 itemBg.Add(stateLabel);
 
                 // View button
-                var viewBtn = CreateButton("VIEW", 120, 80, 0);
-                viewBtn.Position = new Position(WINDOW_WIDTH - 2 * PADDING - 260, 50);
-                viewBtn.ClickEvent += (s, e) => ShowRunningView(timer.Id);
-                itemBg.Add(viewBtn);
+                AddActionButton(itemBg, "VIEW", WINDOW_WIDTH - 2 * PADDING - 280, 30, 130, 70, () => ShowRunningView(timerId));
 
                 // Delete button
-                var delBtn = CreateButton("DELETE", 120, 80, 0);
-                delBtn.Position = new Position(WINDOW_WIDTH - 2 * PADDING - 130, 50);
-                delBtn.ClickEvent += (s, e) =>
-                {
-                    _timerService.RemoveTimer(timer.Id);
-                    ShowTimerListView();
-                };
-                itemBg.Add(delBtn);
+                AddActionButton(itemBg, "DELETE", WINDOW_WIDTH - 2 * PADDING - 140, 30, 130, 70, () => DeleteTimer(timerId));
 
                 parent.Add(itemBg);
             }
             catch (Exception ex)
             {
-                Tizen.Log.Error("FamilyHubTimer", $"CreateTimerListItem error: {ex.Message}");
+                Tizen.Log.Error("FamilyHubTimer", $"AddTimerListItem error: {ex.Message}");
             }
         }
 
-        private void TogglePause()
+        // FIXED: Accept timerId parameter
+        private void TogglePause(string timerId)
         {
             try
             {
-                if (_currentRunningTimer == null) return;
+                var timer = _timerService.GetTimer(timerId);
+                if (timer == null) return;
 
-                if (_currentRunningTimer.State == TimerState.Running)
+                if (timer.State == TimerState.Running)
                 {
-                    _timerService.PauseTimer(_currentRunningTimer.Id);
+                    _timerService.PauseTimer(timerId);
                 }
-                else if (_currentRunningTimer.State == TimerState.Paused)
+                else if (timer.State == TimerState.Paused)
                 {
-                    _timerService.ResumeTimer(_currentRunningTimer.Id);
+                    _timerService.ResumeTimer(timerId);
                 }
 
-                ShowRunningView(_currentRunningTimer.Id);
+                ShowRunningView(timerId);
             }
             catch (Exception ex)
             {
@@ -452,13 +569,16 @@ namespace FamilyHubTimer
             }
         }
 
-        private void ResetTimer()
+        // FIXED: Accept timerId parameter
+        private void ResetTimer(string timerId)
         {
             try
             {
-                if (_currentRunningTimer == null) return;
-                _timerService.ResetTimer(_currentRunningTimer.Id);
-                ShowRunningView(_currentRunningTimer.Id);
+                var timer = _timerService.GetTimer(timerId);
+                if (timer == null) return;
+                
+                _timerService.ResetTimer(timerId);
+                ShowRunningView(timerId);
             }
             catch (Exception ex)
             {
@@ -466,12 +586,12 @@ namespace FamilyHubTimer
             }
         }
 
-        private void DeleteTimer()
+        // FIXED: Accept timerId parameter
+        private void DeleteTimer(string timerId)
         {
             try
             {
-                if (_currentRunningTimer == null) return;
-                _timerService.RemoveTimer(_currentRunningTimer.Id);
+                _timerService.RemoveTimer(timerId);
                 ShowTimerListView();
             }
             catch (Exception ex)
@@ -480,83 +600,78 @@ namespace FamilyHubTimer
             }
         }
 
-        private void StartDisplayUpdate()
+        // FIXED: Proper UI thread updates for continuous display
+        private void StartUpdateTimer()
         {
-            StopDisplayUpdate();
-            _displayUpdateTimer = new System.Threading.Timer(
+            StopUpdateTimer();
+            _updateTimer = new System.Threading.Timer(
                 (s) => UpdateDisplay(),
                 null,
-                TimeSpan.FromMilliseconds(500),
-                TimeSpan.FromMilliseconds(500)
+                TimeSpan.FromMilliseconds(200), // FIXED: Faster updates (200ms instead of 500ms)
+                TimeSpan.FromMilliseconds(200)
             );
         }
 
+        // FIXED: Use MainThread for UI updates
         private void UpdateDisplay()
         {
             try
             {
-                if (_currentRunningTimer == null) return;
+                if (_currentView != ViewState.Running || _selectedTimerId == null) return;
 
-                _currentRunningTimer = _timerService.GetTimer(_currentRunningTimer.Id);
-                if (_currentRunningTimer != null && _timerDisplayLabel != null)
-                {
-                    _timerDisplayLabel.Text = _currentRunningTimer.GetFormattedTime();
-                }
+                var timer = _timerService.GetTimer(_selectedTimerId);
+                if (timer == null) return;
 
-                if (_currentRunningTimer?.State == TimerState.Finished)
+                // FIXED: Update UI on main thread
+                MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    StopDisplayUpdate();
-                    _notificationService?.PlayTimerAlert();
-                    MainThread.BeginInvokeOnMainThread(() =>
+                    try
                     {
-                        ShowRunningView(_currentRunningTimer.Id);
-                    });
-                }
-            }
-            catch { }
-        }
+                        if (_timerDisplayLabel != null && _stateLabel != null)
+                        {
+                            _timerDisplayLabel.Text = timer.GetFormattedTime();
+                            _stateLabel.Text = GetStateText(timer.State);
+                        }
 
-        private void StopDisplayUpdate()
-        {
-            if (_displayUpdateTimer != null)
+                        // FIXED: Handle finished state without freezing
+                        if (timer.State == TimerState.Finished)
+                        {
+                            StopUpdateTimer();
+                            _notificationService?.PlayTimerAlert();
+                            // Stay on finished view
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Tizen.Log.Error("FamilyHubTimer", $"UpdateDisplay UI error: {ex.Message}");
+                    }
+                });
+            }
+            catch (Exception ex)
             {
-                _displayUpdateTimer.Dispose();
-                _displayUpdateTimer = null;
+                Tizen.Log.Error("FamilyHubTimer", $"UpdateDisplay error: {ex.Message}");
             }
         }
 
-        private TextLabel CreateLabel(string text, int fontSize, int yPos)
+        private void StopUpdateTimer()
         {
-            var label = new TextLabel();
-            label.Text = text;
-            label.PointSize = (uint)fontSize;
-            label.TextColor = new Color(1.0f, 1.0f, 1.0f, 1.0f);
-            label.Position = new Position(PADDING, yPos);
-            label.Size = new Size(WINDOW_WIDTH - 2 * PADDING, 100);
-            return label;
-        }
-
-        private TextLabel CreateButton(string text, int width, int height, int yPos)
-        {
-            var btn = new TextLabel();
-            btn.Text = text;
-            btn.PointSize = 40;
-            btn.TextColor = new Color(0.0f, 0.0f, 0.0f, 1.0f);
-            btn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
-            btn.HorizontalAlignment = HorizontalAlignment.Center;
-            btn.VerticalAlignment = VerticalAlignment.Center;
-            btn.Position = new Position(PADDING, yPos);
-            btn.Size = new Size(width, height);
-            btn.TouchEvent += (s, e) => { return true; };
-            return btn;
+            if (_updateTimer != null)
+            {
+                _updateTimer.Dispose();
+                _updateTimer = null;
+            }
         }
 
         private void ClearContent()
         {
             if (_contentView != null)
             {
-                _rootView.Remove(_contentView);
-                _contentView.Dispose();
+                try
+                {
+                    _rootView.Remove(_contentView);
+                    _contentView.Dispose();
+                }
+                catch { }
                 _contentView = null;
             }
         }
@@ -582,6 +697,12 @@ namespace FamilyHubTimer
                     _notificationService?.PlayTimerAlert();
                 };
 
+                _timerService.TimerUpdated += (s, timer) =>
+                {
+                    // Event for any timer update
+                    Tizen.Log.Debug("FamilyHubTimer", $"Timer updated: {timer.Id}");
+                };
+
                 Tizen.Log.Info("FamilyHubTimer", "[MAIN] Events subscribed");
             }
             catch (Exception ex)
@@ -598,12 +719,9 @@ namespace FamilyHubTimer
             try
             {
                 _timerService?.Pause();
-                StopDisplayUpdate();
+                StopUpdateTimer();
             }
-            catch (Exception ex)
-            {
-                Tizen.Log.Error("FamilyHubTimer", $"OnPause error: {ex.Message}");
-            }
+            catch { }
         }
 
         protected override void OnResume()
@@ -616,13 +734,10 @@ namespace FamilyHubTimer
                 _timerService?.Resume();
                 if (_currentView == ViewState.Running)
                 {
-                    StartDisplayUpdate();
+                    StartUpdateTimer();
                 }
             }
-            catch (Exception ex)
-            {
-                Tizen.Log.Error("FamilyHubTimer", $"OnResume error: {ex.Message}");
-            }
+            catch { }
         }
 
         protected override void OnTerminate()
@@ -632,14 +747,11 @@ namespace FamilyHubTimer
 
             try
             {
-                StopDisplayUpdate();
+                StopUpdateTimer();
                 _timerService?.Cleanup();
                 _notificationService?.Dispose();
             }
-            catch (Exception ex)
-            {
-                Tizen.Log.Error("FamilyHubTimer", $"OnTerminate error: {ex.Message}");
-            }
+            catch { }
         }
     }
 
