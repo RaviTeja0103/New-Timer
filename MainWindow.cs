@@ -22,6 +22,7 @@ namespace FamilyHubTimer
     /// </summary>
     public class FamilyHubTimerApplication : NUIApplication
     {
+        private static FamilyHubTimerApplication _instance;
         private TimerService _timerService;
         private NotificationService _notificationService;
         private Window _mainWindow;
@@ -55,6 +56,9 @@ namespace FamilyHubTimer
             try
             {
                 Tizen.Log.Info("FamilyHubTimer", "[NUI] OnCreate started");
+
+                // Store instance for thread marshaling
+                _instance = this;
 
                 // Initialize services
                 _timerService = new TimerService();
@@ -623,7 +627,7 @@ namespace FamilyHubTimer
                 if (timer == null) return;
 
                 // FIXED: Update UI on main thread
-                MainThread.BeginInvokeOnMainThread(() =>
+                PostToMainThread(() =>
                 {
                     try
                     {
@@ -659,6 +663,30 @@ namespace FamilyHubTimer
             {
                 _updateTimer.Dispose();
                 _updateTimer = null;
+            }
+        }
+
+        // Helper method to safely post actions to the main thread
+        private static void PostToMainThread(Action action)
+        {
+            if (_instance != null && _instance._mainWindow != null)
+            {
+                _instance._mainWindow.PostAction(() =>
+                {
+                    try
+                    {
+                        action?.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        Tizen.Log.Error("FamilyHubTimer", $"PostToMainThread error: {ex.Message}");
+                    }
+                });
+            }
+            else
+            {
+                // Fallback: invoke directly if instance not available
+                action?.Invoke();
             }
         }
 
