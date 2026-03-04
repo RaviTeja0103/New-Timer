@@ -23,6 +23,9 @@ namespace FamilyHubTimer
     public class FamilyHubTimerApplication : NUIApplication
     {
         private static FamilyHubTimerApplication _instance;
+        private static Queue<Action> _pendingUIActions = new Queue<Action>();
+        private static object _actionLock = new object();
+
         private TimerService _timerService;
         private NotificationService _notificationService;
         private Window _mainWindow;
@@ -69,6 +72,12 @@ namespace FamilyHubTimer
                 // Get main window
                 _mainWindow = GetDefaultWindow();
                 _mainWindow.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
+
+                // Hook into rendering to process pending UI actions
+                _mainWindow.RenderingTime += (s, e) =>
+                {
+                    ProcessPendingUIActions();
+                };
 
                 // Create root view
                 _rootView = new View();
@@ -666,27 +675,32 @@ namespace FamilyHubTimer
             }
         }
 
-        // Helper method to safely post actions to the main thread
+        // Helper method to safely post actions to the main thread using a queue
         private static void PostToMainThread(Action action)
         {
-            if (_instance != null && _instance._mainWindow != null)
+            lock (_actionLock)
             {
-                _instance._mainWindow.PostAction(() =>
+                _pendingUIActions.Enqueue(action);
+            }
+        }
+
+        // Process all pending UI actions from the main rendering thread
+        private static void ProcessPendingUIActions()
+        {
+            lock (_actionLock)
+            {
+                while (_pendingUIActions.Count > 0)
                 {
+                    var action = _pendingUIActions.Dequeue();
                     try
                     {
                         action?.Invoke();
                     }
                     catch (Exception ex)
                     {
-                        Tizen.Log.Error("FamilyHubTimer", $"PostToMainThread error: {ex.Message}");
+                        Tizen.Log.Error("FamilyHubTimer", $"UI action error: {ex.Message}");
                     }
-                });
-            }
-            else
-            {
-                // Fallback: invoke directly if instance not available
-                action?.Invoke();
+                }
             }
         }
 
