@@ -23,15 +23,13 @@ namespace FamilyHubTimer
     public class FamilyHubTimerApplication : NUIApplication
     {
         private static FamilyHubTimerApplication _instance;
-        private static Queue<Action> _pendingUIActions = new Queue<Action>();
-        private static object _actionLock = new object();
 
         private TimerService _timerService;
         private NotificationService _notificationService;
         private Window _mainWindow;
         private View _rootView;
         private View _contentView;
-        private System.Threading.Timer _updateTimer;
+        private Timer _updateTimer;
         
         // UI state
         private enum ViewState { Setup, Running, List }
@@ -72,12 +70,6 @@ namespace FamilyHubTimer
                 // Get main window
                 _mainWindow = GetDefaultWindow();
                 _mainWindow.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
-
-                // Hook into rendering to process pending UI actions
-                _mainWindow.RenderingTime += (s, e) =>
-                {
-                    ProcessPendingUIActions();
-                };
 
                 // Create root view
                 _rootView = new View();
@@ -617,15 +609,15 @@ namespace FamilyHubTimer
         private void StartUpdateTimer()
         {
             StopUpdateTimer();
-            _updateTimer = new System.Threading.Timer(
-                (s) => UpdateDisplay(),
-                null,
-                TimeSpan.FromMilliseconds(200), // FIXED: Faster updates (200ms instead of 500ms)
-                TimeSpan.FromMilliseconds(200)
-            );
+            _updateTimer = new Timer(200); // 200ms interval on main thread
+            _updateTimer.Tick += (s, e) =>
+            {
+                UpdateDisplay();
+            };
+            _updateTimer.Start();
         }
 
-        // FIXED: Use MainThread for UI updates
+        // FIXED: Use Tizen.NUI.Timer for main thread updates
         private void UpdateDisplay()
         {
             try
@@ -635,30 +627,27 @@ namespace FamilyHubTimer
                 var timer = _timerService.GetTimer(_selectedTimerId);
                 if (timer == null) return;
 
-                // FIXED: Update UI on main thread
-                PostToMainThread(() =>
+                // Tizen.NUI.Timer callback already runs on the main thread
+                try
                 {
-                    try
+                    if (_timerDisplayLabel != null && _stateLabel != null)
                     {
-                        if (_timerDisplayLabel != null && _stateLabel != null)
-                        {
-                            _timerDisplayLabel.Text = timer.GetFormattedTime();
-                            _stateLabel.Text = GetStateText(timer.State);
-                        }
+                        _timerDisplayLabel.Text = timer.GetFormattedTime();
+                        _stateLabel.Text = GetStateText(timer.State);
+                    }
 
-                        // FIXED: Handle finished state without freezing
-                        if (timer.State == TimerState.Finished)
-                        {
-                            StopUpdateTimer();
-                            _notificationService?.PlayTimerAlert();
-                            // Stay on finished view
-                        }
-                    }
-                    catch (Exception ex)
+                    // FIXED: Handle finished state without freezing
+                    if (timer.State == TimerState.Finished)
                     {
-                        Tizen.Log.Error("FamilyHubTimer", $"UpdateDisplay UI error: {ex.Message}");
+                        StopUpdateTimer();
+                        _notificationService?.PlayTimerAlert();
+                        // Stay on finished view
                     }
-                });
+                }
+                catch (Exception ex)
+                {
+                    Tizen.Log.Error("FamilyHubTimer", $"UpdateDisplay UI error: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
@@ -670,37 +659,9 @@ namespace FamilyHubTimer
         {
             if (_updateTimer != null)
             {
+                _updateTimer.Stop();
                 _updateTimer.Dispose();
                 _updateTimer = null;
-            }
-        }
-
-        // Helper method to safely post actions to the main thread using a queue
-        private static void PostToMainThread(Action action)
-        {
-            lock (_actionLock)
-            {
-                _pendingUIActions.Enqueue(action);
-            }
-        }
-
-        // Process all pending UI actions from the main rendering thread
-        private static void ProcessPendingUIActions()
-        {
-            lock (_actionLock)
-            {
-                while (_pendingUIActions.Count > 0)
-                {
-                    var action = _pendingUIActions.Dequeue();
-                    try
-                    {
-                        action?.Invoke();
-                    }
-                    catch (Exception ex)
-                    {
-                        Tizen.Log.Error("FamilyHubTimer", $"UI action error: {ex.Message}");
-                    }
-                }
             }
         }
 
