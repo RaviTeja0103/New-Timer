@@ -188,8 +188,8 @@ namespace FamilyHubTimer.Services
             _tickTimer = new System.Threading.Timer(
                 callback: TickCallback,
                 state: null,
-                dueTime: TimeSpan.FromMilliseconds(100),
-                period: TimeSpan.FromMilliseconds(100)
+                dueTime: TimeSpan.FromMilliseconds(1000),
+                period: TimeSpan.FromMilliseconds(1000)
             );
         }
 

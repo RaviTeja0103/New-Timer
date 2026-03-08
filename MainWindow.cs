@@ -45,6 +45,9 @@ namespace FamilyHubTimer
         private TextLabel _stateLabel;
         private TimerModel _currentRunningTimer;
 
+        // List view - for continuous updates
+        private Dictionary<string, (TextLabel timeLabel, TextLabel percentageLabel)> _timerListItems;
+
         private const int WINDOW_WIDTH = 1080;
         private const int WINDOW_HEIGHT = 1920;
         private const int BTN_HEIGHT = 100;
@@ -398,8 +401,16 @@ namespace FamilyHubTimer
                 // Buttons
                 int btnWidth = WINDOW_WIDTH - 2 * PADDING;
                 
-                AddActionButton(_contentView, 
-                    _currentRunningTimer.State == TimerState.Running ? "PAUSE" : "RESUME",
+                // FIXED: Show START for Idle, PAUSE/RESUME for Running/Paused
+                string pauseResumeText;
+                if (_currentRunningTimer.State == TimerState.Idle)
+                    pauseResumeText = "START";
+                else if (_currentRunningTimer.State == TimerState.Running)
+                    pauseResumeText = "PAUSE";
+                else
+                    pauseResumeText = "RESUME";
+                    
+                AddActionButton(_contentView, pauseResumeText,
                     PADDING, yPos, btnWidth, BTN_HEIGHT, () => TogglePause(timerId));
                 yPos += BTN_HEIGHT + 20;
 
@@ -428,6 +439,7 @@ namespace FamilyHubTimer
                 StopUpdateTimer();
                 ClearContent();
                 _currentView = ViewState.List;
+                _timerListItems = new Dictionary<string, (TextLabel, TextLabel)>();
 
                 _contentView = new View();
                 _contentView.Size = new Size(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -461,33 +473,47 @@ namespace FamilyHubTimer
                 }
                 else
                 {
-                    // FIXED: Add scrollable container
-                    var scrollContainer = new View();
-                    scrollContainer.Position = new Position(PADDING, yPos);
-                    scrollContainer.Size = new Size(WINDOW_WIDTH - 2 * PADDING, WINDOW_HEIGHT - yPos - BTN_HEIGHT - 180);
-                    scrollContainer.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
-                    scrollContainer.ClippingMode = ClippingModeType.ClipChildren;
+                    // FIXED: Add scrollable container with proper scrolling support
+                    var scrollableArea = new View();
+                    scrollableArea.Position = new Position(PADDING, yPos);
+                    scrollableArea.Size = new Size(WINDOW_WIDTH - 2 * PADDING, WINDOW_HEIGHT - yPos - BTN_HEIGHT - 180);
+                    scrollableArea.BackgroundColor = new Color(0.05f, 0.05f, 0.05f, 1.0f);
+                    scrollableArea.ClippingMode = ClippingModeType.ClipChildren;
 
                     int itemY = 0;
                     foreach (var timer in timers)
                     {
-                        AddTimerListItem(scrollContainer, timer, itemY);
-                        itemY += 200;
+                        AddTimerListItem(scrollableArea, timer, itemY);
+                        itemY += 220;
                     }
 
-                    // FIXED: Make scrollable if content exceeds container
-                    var scrollView = new View();
-                    scrollView.Position = new Position(PADDING, yPos);
-                    scrollView.Size = new Size(WINDOW_WIDTH - 2 * PADDING, WINDOW_HEIGHT - yPos - BTN_HEIGHT - 180);
-                    scrollView.ClippingMode = ClippingModeType.ClipChildren;
-                    scrollView.Add(scrollContainer);
-                    _contentView.Add(scrollView);
+                    // Enable pan gesture for scrolling
+                    var panGestureDetector = new PanGestureDetector();
+                    panGestureDetector.Detected += (s, e) =>
+                    {
+                        if (e.PanGesture.State == Gesture.StateType.Continuing || e.PanGesture.State == Gesture.StateType.Finished)
+                        {
+                            float displacement = e.PanGesture.Displacement.Y;
+                            Position currentPos = scrollableArea.Position;
+                            float newY = currentPos.Y + displacement;
+                            
+                            // Clamp scrolling
+                            float maxScroll = Math.Max(0, itemY - scrollableArea.Size.Height);
+                            newY = Math.Max(-maxScroll, Math.Min(0, newY));
+                            
+                            scrollableArea.Position = new Position(currentPos.X, newY);
+                        }
+                    };
+                    scrollableArea.AddGestureDetector(panGestureDetector);
+
+                    _contentView.Add(scrollableArea);
                 }
 
                 // Add timer button at bottom
                 AddActionButton(_contentView, "+ ADD NEW TIMER", PADDING, WINDOW_HEIGHT - BTN_HEIGHT - 80, WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, () => ShowSetupView());
 
                 _rootView.Add(_contentView);
+                StartUpdateTimer(); // FIXED: Start continuous updates for list view
                 Tizen.Log.Info("FamilyHubTimer", "[UI] Timer list view shown");
             }
             catch (Exception ex)
@@ -496,7 +522,7 @@ namespace FamilyHubTimer
             }
         }
 
-        // FIXED: Use captured timer ID to prevent double-delete
+        // FIXED: Use captured timer ID to prevent double-delete and track labels for updates
         private void AddTimerListItem(View parent, TimerModel timer, int yPos)
         {
             try
@@ -505,7 +531,7 @@ namespace FamilyHubTimer
                 
                 var itemBg = new View();
                 itemBg.Position = new Position(0, yPos);
-                itemBg.Size = new Size(WINDOW_WIDTH - 2 * PADDING, 180);
+                itemBg.Size = new Size(WINDOW_WIDTH - 2 * PADDING, 200);
                 itemBg.BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
 
                 // Timer name
@@ -517,13 +543,13 @@ namespace FamilyHubTimer
                 nameLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 40, 50);
                 itemBg.Add(nameLabel);
 
-                // Timer time
+                // Timer time and percentage on same row
                 var timeLabel = new TextLabel();
-                timeLabel.Text = timer.GetFormattedTime();
+                timeLabel.Text = $"{timer.GetFormattedTime()} ({timer.GetProgressPercentage():F0}%)";
                 timeLabel.PointSize = 48;
                 timeLabel.TextColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
-                timeLabel.Position = new Position(20, 75);
-                timeLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 40, 60);
+                timeLabel.Position = new Position(20, 70);
+                timeLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 280, 60);
                 itemBg.Add(timeLabel);
 
                 // State
@@ -536,10 +562,13 @@ namespace FamilyHubTimer
                 itemBg.Add(stateLabel);
 
                 // View button
-                AddActionButton(itemBg, "VIEW", WINDOW_WIDTH - 2 * PADDING - 280, 30, 130, 70, () => ShowRunningView(timerId));
+                AddActionButton(itemBg, "VIEW", WINDOW_WIDTH - 2 * PADDING - 280, 20, 130, 70, () => ShowRunningView(timerId));
 
                 // Delete button
-                AddActionButton(itemBg, "DELETE", WINDOW_WIDTH - 2 * PADDING - 140, 30, 130, 70, () => DeleteTimer(timerId));
+                AddActionButton(itemBg, "DELETE", WINDOW_WIDTH - 2 * PADDING - 140, 20, 130, 70, () => DeleteTimer(timerId));
+
+                // Store labels for updating
+                _timerListItems[timerId] = (timeLabel, stateLabel);
 
                 parent.Add(itemBg);
             }
@@ -549,7 +578,7 @@ namespace FamilyHubTimer
             }
         }
 
-        // FIXED: Accept timerId parameter
+        // FIXED: Accept timerId parameter and handle START for Idle state
         private void TogglePause(string timerId)
         {
             try
@@ -557,7 +586,11 @@ namespace FamilyHubTimer
                 var timer = _timerService.GetTimer(timerId);
                 if (timer == null) return;
 
-                if (timer.State == TimerState.Running)
+                if (timer.State == TimerState.Idle)
+                {
+                    _timerService.StartTimer(timerId);
+                }
+                else if (timer.State == TimerState.Running)
                 {
                     _timerService.PauseTimer(timerId);
                 }
@@ -609,7 +642,7 @@ namespace FamilyHubTimer
         private void StartUpdateTimer()
         {
             StopUpdateTimer();
-            _updateTimer = new Timer(200); // 200ms interval on main thread
+            _updateTimer = new Timer(1000); // 200ms interval on main thread
             _updateTimer.Tick += (s, e) =>
             {
                 UpdateDisplay();
@@ -622,31 +655,52 @@ namespace FamilyHubTimer
         {
             try
             {
-                if (_currentView != ViewState.Running || _selectedTimerId == null) return;
-
-                var timer = _timerService.GetTimer(_selectedTimerId);
-                if (timer == null) return;
-
-                // Tizen.NUI.Timer callback already runs on the main thread
-                try
+                if (_currentView == ViewState.Running && _selectedTimerId != null)
                 {
-                    if (_timerDisplayLabel != null && _stateLabel != null)
-                    {
-                        _timerDisplayLabel.Text = timer.GetFormattedTime();
-                        _stateLabel.Text = GetStateText(timer.State);
-                    }
+                    var timer = _timerService.GetTimer(_selectedTimerId);
+                    if (timer == null) return;
 
-                    // FIXED: Handle finished state without freezing
-                    if (timer.State == TimerState.Finished)
+                    // Tizen.NUI.Timer callback already runs on the main thread
+                    try
                     {
-                        StopUpdateTimer();
-                        _notificationService?.PlayTimerAlert();
-                        // Stay on finished view
+                        if (_timerDisplayLabel != null && _stateLabel != null)
+                        {
+                            _timerDisplayLabel.Text = timer.GetFormattedTime();
+                            _stateLabel.Text = GetStateText(timer.State);
+                        }
+
+                        // FIXED: Handle finished state without freezing
+                        if (timer.State == TimerState.Finished)
+                        {
+                            StopUpdateTimer();
+                            _notificationService?.PlayTimerAlert();
+                            // Stay on finished view
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Tizen.Log.Error("FamilyHubTimer", $"UpdateDisplay UI error: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
+                else if (_currentView == ViewState.List && _timerListItems != null)
                 {
-                    Tizen.Log.Error("FamilyHubTimer", $"UpdateDisplay UI error: {ex.Message}");
+                    // FIXED: Update list view timers continuously
+                    var timers = _timerService.GetAllTimers();
+                    foreach (var timer in timers)
+                    {
+                        if (_timerListItems.TryGetValue(timer.Id, out var labels))
+                        {
+                            try
+                            {
+                                labels.timeLabel.Text = $"{timer.GetFormattedTime()} ({timer.GetProgressPercentage():F0}%)";
+                                labels.percentageLabel.Text = GetStateText(timer.State);
+                            }
+                            catch (Exception ex)
+                            {
+                                Tizen.Log.Error("FamilyHubTimer", $"Error updating list item: {ex.Message}");
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
