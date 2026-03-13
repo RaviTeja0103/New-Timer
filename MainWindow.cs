@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Tizen.NUI;
 using Tizen.NUI.BaseComponents;
+using Tizen.NUI.Components;
 using FamilyHubTimer.Services;
 using FamilyHubTimer.Models;
 
@@ -47,6 +48,8 @@ namespace FamilyHubTimer
 
         // List view - for continuous updates
         private Dictionary<string, (TextLabel timeLabel, TextLabel percentageLabel)> _timerListItems;
+        private Dictionary<string, Progress> _timerProgressComponents;
+        private Dialog _finishedPopup;
 
         private const int WINDOW_WIDTH = 1080;
         private const int WINDOW_HEIGHT = 1920;
@@ -178,17 +181,21 @@ namespace FamilyHubTimer
                 var btnWidth = (presetBtnContainerWidth - 60) / 4; // 4 buttons with spacing
 
                 int btnX = PADDING;
-                AddPresetButton(_contentView, "10s", 10, btnX, yPos, btnWidth, BTN_HEIGHT);
+                AddSoftButton(_contentView, "10s", btnX, yPos, btnWidth, BTN_HEIGHT, () 
+                    => UpdatePresetTime(10));
                 btnX += btnWidth + 20;
-                AddPresetButton(_contentView, "5m", 300, btnX, yPos, btnWidth, BTN_HEIGHT);
+                AddSoftButton(_contentView, "5m", btnX, yPos, btnWidth, BTN_HEIGHT, () 
+                    => UpdatePresetTime(300));
                 btnX += btnWidth + 20;
-                AddPresetButton(_contentView, "15m", 900, btnX, yPos, btnWidth, BTN_HEIGHT);
+                AddSoftButton(_contentView, "15m", btnX, yPos, btnWidth, BTN_HEIGHT, () 
+                    => UpdatePresetTime(900));
                 btnX += btnWidth + 20;
-                AddPresetButton(_contentView, "30m", 1800, btnX, yPos, btnWidth, BTN_HEIGHT);
+                AddSoftButton(_contentView, "30m", btnX, yPos, btnWidth, BTN_HEIGHT, () 
+                    => UpdatePresetTime(1800));
                 yPos += BTN_HEIGHT + 40;
 
                 // START button
-                AddActionButton(_contentView, "START TIMER", PADDING, yPos, WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT + 20, () =>
+                AddSoftButton(_contentView, "START TIMER", PADDING, yPos, WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT + 20, () =>
                 {
                     int totalSecs = _setupHours * 3600 + _setupMinutes * 60 + _setupSeconds;
                     if (totalSecs > 0) StartTimer();
@@ -327,6 +334,76 @@ namespace FamilyHubTimer
             parent.Add(btn);
         }
 
+        // FIXED: Soft button with curved edges and shadow
+        private void AddSoftButton(View parent, string label, int x, int y, int width, int height, Action onTap)
+        {
+            try
+            {
+                var btn = new Button();
+                btn.Text = label;
+                btn.Position = new Position(x, y);
+                btn.Size = new Size(width, height);
+                btn.CornerRadius = 25;
+                btn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+                btn.TextColor = new Color(0, 0, 0, 1);
+                btn.PointSize = 40;
+                
+                // Add shadow effect
+                var shadow = new Shadow();
+                shadow.Offset = new Vector2(4, 4);
+                shadow.BlurRadius = 8;
+                shadow.Color = new Color(0, 0, 0, 0.3f);
+                btn.BoxShadow = shadow;
+
+                btn.Clicked += (s, e) =>
+                {
+                    onTap?.Invoke();
+                };
+
+                parent.Add(btn);
+            }
+            catch (Exception ex)
+            {
+                Tizen.Log.Error("FamilyHubTimer", $"AddSoftButton error: {ex.Message}");
+                // Fallback to text label button
+                AddActionButton(parent, label, x, y, width, height, onTap);
+            }
+        }
+
+        // FIXED: Circular button for list view
+        private void AddCircularButton(View parent, string label, int x, int y, int size, Action onTap)
+        {
+            try
+            {
+                var btn = new Button();
+                btn.Text = label;
+                btn.Position = new Position(x, y);
+                btn.Size = new Size(size, size);
+                btn.CornerRadius = size / 2f;
+                btn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+                btn.TextColor = new Color(0, 0, 0, 1);
+                btn.PointSize = 24;
+
+                // Add shadow effect
+                var shadow = new Shadow();
+                shadow.Offset = new Vector2(3, 3);
+                shadow.BlurRadius = 6;
+                shadow.Color = new Color(0, 0, 0, 0.35f);
+                btn.BoxShadow = shadow;
+
+                btn.Clicked += (s, e) =>
+                {
+                    onTap?.Invoke();
+                };
+
+                parent.Add(btn);
+            }
+            catch (Exception ex)
+            {
+                Tizen.Log.Error("FamilyHubTimer", $"AddCircularButton error: {ex.Message}");
+            }
+        }
+
         private void StartTimer()
         {
             try
@@ -345,6 +422,18 @@ namespace FamilyHubTimer
             {
                 Tizen.Log.Error("FamilyHubTimer", $"StartTimer error: {ex.Message}");
             }
+        }
+
+        // FIXED: Helper method to update time from preset buttons
+        private void UpdatePresetTime(int totalSeconds)
+        {
+            _setupHours = totalSeconds / 3600;
+            _setupMinutes = (totalSeconds % 3600) / 60;
+            _setupSeconds = totalSeconds % 60;
+
+            _hoursDisplay.Text = _setupHours.ToString("D2");
+            _minutesDisplay.Text = _setupMinutes.ToString("D2");
+            _secondsDisplay.Text = _setupSeconds.ToString("D2");
         }
 
         private void ShowRunningView(string timerId)
@@ -410,17 +499,17 @@ namespace FamilyHubTimer
                 else
                     pauseResumeText = "RESUME";
                     
-                AddActionButton(_contentView, pauseResumeText,
+                AddSoftButton(_contentView, pauseResumeText,
                     PADDING, yPos, btnWidth, BTN_HEIGHT, () => TogglePause(timerId));
                 yPos += BTN_HEIGHT + 20;
 
-                AddActionButton(_contentView, "RESET", PADDING, yPos, btnWidth, BTN_HEIGHT, () => ResetTimer(timerId));
+                AddSoftButton(_contentView, "RESET", PADDING, yPos, btnWidth, BTN_HEIGHT, () => ResetTimer(timerId));
                 yPos += BTN_HEIGHT + 20;
 
-                AddActionButton(_contentView, "DELETE", PADDING, yPos, btnWidth, BTN_HEIGHT, () => DeleteTimer(timerId));
+                AddSoftButton(_contentView, "DELETE", PADDING, yPos, btnWidth, BTN_HEIGHT, () => DeleteTimer(timerId));
                 yPos += BTN_HEIGHT + 20;
 
-                AddActionButton(_contentView, "BACK TO LIST", PADDING, yPos, btnWidth, BTN_HEIGHT, () => ShowTimerListView());
+                AddSoftButton(_contentView, "BACK TO LIST", PADDING, yPos, btnWidth, BTN_HEIGHT, () => ShowTimerListView());
 
                 _rootView.Add(_contentView);
                 StartUpdateTimer(); // FIXED: Start continuous updates
@@ -440,6 +529,7 @@ namespace FamilyHubTimer
                 ClearContent();
                 _currentView = ViewState.List;
                 _timerListItems = new Dictionary<string, (TextLabel, TextLabel)>();
+                _timerProgressComponents = new Dictionary<string, Progress>();
 
                 _contentView = new View();
                 _contentView.Size = new Size(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -510,7 +600,7 @@ namespace FamilyHubTimer
                 }
 
                 // Add timer button at bottom
-                AddActionButton(_contentView, "+ ADD NEW TIMER", PADDING, WINDOW_HEIGHT - BTN_HEIGHT - 80, WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, () => ShowSetupView());
+                AddSoftButton(_contentView, "+ ADD NEW TIMER", PADDING, WINDOW_HEIGHT - BTN_HEIGHT - 80, WINDOW_WIDTH - 2 * PADDING, BTN_HEIGHT, () => ShowSetupView());
 
                 _rootView.Add(_contentView);
                 StartUpdateTimer(); // FIXED: Start continuous updates for list view
@@ -531,8 +621,9 @@ namespace FamilyHubTimer
                 
                 var itemBg = new View();
                 itemBg.Position = new Position(0, yPos);
-                itemBg.Size = new Size(WINDOW_WIDTH - 2 * PADDING, 200);
+                itemBg.Size = new Size(WINDOW_WIDTH - 2 * PADDING, 220);
                 itemBg.BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
+                itemBg.CornerRadius = 15;
 
                 // Timer name
                 var nameLabel = new TextLabel();
@@ -540,7 +631,7 @@ namespace FamilyHubTimer
                 nameLabel.PointSize = 38;
                 nameLabel.TextColor = new Color(1, 1, 1, 1);
                 nameLabel.Position = new Position(20, 15);
-                nameLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 40, 50);
+                nameLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 220, 50);
                 itemBg.Add(nameLabel);
 
                 // Timer time and percentage on same row
@@ -549,23 +640,37 @@ namespace FamilyHubTimer
                 timeLabel.PointSize = 48;
                 timeLabel.TextColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
                 timeLabel.Position = new Position(20, 70);
-                timeLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 280, 60);
+                timeLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 220, 60);
                 itemBg.Add(timeLabel);
+
+                // FIXED: Add Progress component for visual progress indicator
+                var progressBar = new Progress();
+                progressBar.Position = new Position(20, 140);
+                progressBar.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 220, 30);
+                progressBar.MaxValue = 100;
+                progressBar.CurrentValue = timer.GetProgressPercentage();
+                
+                // Style progress bar
+                progressBar.BackgroundColor = new Color(0.2f, 0.2f, 0.2f, 1.0f);
+                
+                itemBg.Add(progressBar);
+                _timerProgressComponents[timerId] = progressBar;
 
                 // State
                 var stateLabel = new TextLabel();
                 stateLabel.Text = GetStateText(timer.State);
                 stateLabel.PointSize = 32;
                 stateLabel.TextColor = new Color(0.7f, 0.7f, 0.7f, 1.0f);
-                stateLabel.Position = new Position(20, 140);
+                stateLabel.Position = new Position(20, 180);
                 stateLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 250, 40);
                 itemBg.Add(stateLabel);
 
-                // View button
-                AddActionButton(itemBg, "VIEW", WINDOW_WIDTH - 2 * PADDING - 280, 20, 130, 70, () => ShowRunningView(timerId));
-
-                // Delete button
-                AddActionButton(itemBg, "DELETE", WINDOW_WIDTH - 2 * PADDING - 140, 20, 130, 70, () => DeleteTimer(timerId));
+                // FIXED: Use circular buttons instead of rectangular
+                int buttonSize = 70;
+                int viewBtnX = (int)(WINDOW_WIDTH - 2 * PADDING - 190);
+                
+                AddCircularButton(itemBg, "👁", viewBtnX, 30, buttonSize, () => ShowRunningView(timerId));
+                AddCircularButton(itemBg, "✕", viewBtnX, 110, buttonSize, () => DeleteTimer(timerId));
 
                 // Store labels for updating
                 _timerListItems[timerId] = (timeLabel, stateLabel);
@@ -669,12 +774,12 @@ namespace FamilyHubTimer
                             _stateLabel.Text = GetStateText(timer.State);
                         }
 
-                        // FIXED: Handle finished state without freezing
+                        // FIXED: Handle finished state with popup
                         if (timer.State == TimerState.Finished)
                         {
                             StopUpdateTimer();
                             _notificationService?.PlayTimerAlert();
-                            // Stay on finished view
+                            ShowFinishedPopup(timer.Name);
                         }
                     }
                     catch (Exception ex)
@@ -684,7 +789,7 @@ namespace FamilyHubTimer
                 }
                 else if (_currentView == ViewState.List && _timerListItems != null)
                 {
-                    // FIXED: Update list view timers continuously
+                    // FIXED: Update list view timers continuously with progress bars
                     var timers = _timerService.GetAllTimers();
                     foreach (var timer in timers)
                     {
@@ -694,6 +799,12 @@ namespace FamilyHubTimer
                             {
                                 labels.timeLabel.Text = $"{timer.GetFormattedTime()} ({timer.GetProgressPercentage():F0}%)";
                                 labels.percentageLabel.Text = GetStateText(timer.State);
+                                
+                                // FIXED: Update progress component if exists
+                                if (_timerProgressComponents.TryGetValue(timer.Id, out var progressBar))
+                                {
+                                    progressBar.CurrentValue = timer.GetProgressPercentage();
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -716,6 +827,71 @@ namespace FamilyHubTimer
                 _updateTimer.Stop();
                 _updateTimer.Dispose();
                 _updateTimer = null;
+            }
+        }
+
+        // FIXED: Show popup when timer finishes
+        private void ShowFinishedPopup(string timerName)
+        {
+            try
+            {
+                // Create dialog
+                _finishedPopup = new Dialog();
+                _finishedPopup.Size = new Size(800, 500);
+                _finishedPopup.Position = new Position((WINDOW_WIDTH - 800) / 2, (WINDOW_HEIGHT - 500) / 2);
+                _finishedPopup.BackgroundColor = new Color(0.15f, 0.15f, 0.15f, 1.0f);
+
+                // Title
+                var titleLabel = new TextLabel();
+                titleLabel.Text = "⏱ Timer Finished!";
+                titleLabel.PointSize = 50;
+                titleLabel.TextColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+                titleLabel.Position = new Position(0, 40);
+                titleLabel.Size = new Size(800, 80);
+                titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+                _finishedPopup.Add(titleLabel);
+
+                // Timer name
+                var nameLabel = new TextLabel();
+                nameLabel.Text = $"'{timerName}' has finished!";
+                nameLabel.PointSize = 36;
+                nameLabel.TextColor = new Color(1, 1, 1, 1);
+                nameLabel.Position = new Position(0, 140);
+                nameLabel.Size = new Size(800, 70);
+                nameLabel.HorizontalAlignment = HorizontalAlignment.Center;
+                _finishedPopup.Add(nameLabel);
+
+                // OK button
+                var okBtn = new Button();
+                okBtn.Text = "OK";
+                okBtn.Position = new Position(300, 250);
+                okBtn.Size = new Size(200, 80);
+                okBtn.CornerRadius = 20;
+                okBtn.BackgroundColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
+                okBtn.TextColor = new Color(0, 0, 0, 1);
+                okBtn.PointSize = 40;
+
+                okBtn.Clicked += (s, e) =>
+                {
+                    if (_finishedPopup != null)
+                    {
+                        _finishedPopup.Hide();
+                        _rootView.Remove(_finishedPopup);
+                        _finishedPopup = null;
+                    }
+                    ShowTimerListView();
+                };
+
+                _finishedPopup.Add(okBtn);
+                _rootView.Add(_finishedPopup);
+                _finishedPopup.Show();
+
+                Tizen.Log.Info("FamilyHubTimer", $"Finished popup shown for: {timerName}");
+            }
+            catch (Exception ex)
+            {
+                Tizen.Log.Error("FamilyHubTimer", $"ShowFinishedPopup error: {ex.Message}");
+                ShowTimerListView();
             }
         }
 
