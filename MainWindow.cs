@@ -442,6 +442,20 @@ namespace FamilyHubTimer
             {
                 StopUpdateTimer();
                 ClearContent();
+                
+                // FIXED: Close any open popup
+                if (_finishedPopup != null)
+                {
+                    try
+                    {
+                        _finishedPopup.Hide();
+                        _rootView.Remove(_finishedPopup);
+                        _finishedPopup.Dispose();
+                    }
+                    catch { }
+                    _finishedPopup = null;
+                }
+                
                 _currentView = ViewState.Running;
                 _selectedTimerId = timerId;
                 _currentRunningTimer = _timerService.GetTimer(timerId);
@@ -490,9 +504,9 @@ namespace FamilyHubTimer
                 // Buttons
                 int btnWidth = WINDOW_WIDTH - 2 * PADDING;
                 
-                // FIXED: Show START for Idle, PAUSE/RESUME for Running/Paused
+                // FIXED: Show START for Idle/Finished, PAUSE for Running, RESUME for Paused
                 string pauseResumeText;
-                if (_currentRunningTimer.State == TimerState.Idle)
+                if (_currentRunningTimer.State == TimerState.Idle || _currentRunningTimer.State == TimerState.Finished)
                     pauseResumeText = "START";
                 else if (_currentRunningTimer.State == TimerState.Running)
                     pauseResumeText = "PAUSE";
@@ -527,6 +541,20 @@ namespace FamilyHubTimer
             {
                 StopUpdateTimer();
                 ClearContent();
+                
+                // FIXED: Close any open popup
+                if (_finishedPopup != null)
+                {
+                    try
+                    {
+                        _finishedPopup.Hide();
+                        _rootView.Remove(_finishedPopup);
+                        _finishedPopup.Dispose();
+                    }
+                    catch { }
+                    _finishedPopup = null;
+                }
+                
                 _currentView = ViewState.List;
                 _timerListItems = new Dictionary<string, (TextLabel, TextLabel)>();
                 _timerProgressComponents = new Dictionary<string, Progress>();
@@ -625,6 +653,16 @@ namespace FamilyHubTimer
                 itemBg.BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
                 itemBg.CornerRadius = 15;
 
+                // FIXED: Make entire row clickable to view timer
+                itemBg.TouchEvent += (s, e) =>
+                {
+                    if (e.Touch.GetState(0) == PointStateType.Up)
+                    {
+                        ShowRunningView(timerId);
+                    }
+                    return true;
+                };
+
                 // Timer name
                 var nameLabel = new TextLabel();
                 nameLabel.Text = timer.Name;
@@ -665,12 +703,23 @@ namespace FamilyHubTimer
                 stateLabel.Size = new Size(WINDOW_WIDTH - 2 * PADDING - 250, 40);
                 itemBg.Add(stateLabel);
 
-                // FIXED: Use circular buttons instead of rectangular
+                // FIXED: Replace view button with pause/resume button and keep delete
                 int buttonSize = 70;
-                int viewBtnX = (int)(WINDOW_WIDTH - 2 * PADDING - 190);
+                int pauseBtnX = (int)(WINDOW_WIDTH - 2 * PADDING - 190);
                 
-                AddCircularButton(itemBg, "👁", viewBtnX, 30, buttonSize, () => ShowRunningView(timerId));
-                AddCircularButton(itemBg, "✕", viewBtnX, 110, buttonSize, () => DeleteTimer(timerId));
+                // Pause/Resume button
+                AddCircularButton(itemBg, GetPauseResumeIcon(timer.State), pauseBtnX, 30, buttonSize, () => 
+                {
+                    if (timer.State == TimerState.Running)
+                        _timerService.PauseTimer(timerId);
+                    else if (timer.State == TimerState.Paused)
+                        _timerService.ResumeTimer(timerId);
+                    else if (timer.State == TimerState.Idle)
+                        _timerService.StartTimer(timerId);
+                });
+                
+                // Delete button
+                AddCircularButton(itemBg, "✕", pauseBtnX, 110, buttonSize, () => DeleteTimer(timerId));
 
                 // Store labels for updating
                 _timerListItems[timerId] = (timeLabel, stateLabel);
@@ -683,7 +732,7 @@ namespace FamilyHubTimer
             }
         }
 
-        // FIXED: Accept timerId parameter and handle START for Idle state
+        // FIXED: Accept timerId parameter and handle START for Idle/Finished state
         private void TogglePause(string timerId)
         {
             try
@@ -691,8 +740,13 @@ namespace FamilyHubTimer
                 var timer = _timerService.GetTimer(timerId);
                 if (timer == null) return;
 
-                if (timer.State == TimerState.Idle)
+                if (timer.State == TimerState.Idle || timer.State == TimerState.Finished)
                 {
+                    // Reset if finished, then start
+                    if (timer.State == TimerState.Finished)
+                    {
+                        _timerService.ResetTimer(timerId);
+                    }
                     _timerService.StartTimer(timerId);
                 }
                 else if (timer.State == TimerState.Running)
@@ -804,6 +858,14 @@ namespace FamilyHubTimer
                                 if (_timerProgressComponents.TryGetValue(timer.Id, out var progressBar))
                                 {
                                     progressBar.CurrentValue = timer.GetProgressPercentage();
+                                }
+
+                                // FIXED: Show popup for finished timers in list view
+                                if (timer.State == TimerState.Finished && _finishedPopup == null)
+                                {
+                                    _notificationService?.PlayTimerAlert();
+                                    ShowFinishedPopup(timer.Name);
+                                    break; // Show popup for one timer at a time
                                 }
                             }
                             catch (Exception ex)
@@ -918,6 +980,19 @@ namespace FamilyHubTimer
                 TimerState.Finished => "✓ FINISHED",
                 TimerState.Idle => "○ STOPPED",
                 _ => "?"
+            };
+        }
+
+        // FIXED: Get pause/resume icon based on timer state
+        private string GetPauseResumeIcon(TimerState state)
+        {
+            return state switch
+            {
+                TimerState.Running => "⏸",
+                TimerState.Paused => "▶",
+                TimerState.Idle => "▶",
+                TimerState.Finished => "▶",
+                _ => "▶"
             };
         }
 
